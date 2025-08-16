@@ -302,7 +302,8 @@ class WorkingShopifyScraperService:
                                 if item.get('@type') == 'Question':
                                     faq = FAQ(
                                         question=item.get('name', ''),
-                                        answer=item.get('acceptedAnswer', {}).get('text', '')
+                                        answer=item.get('acceptedAnswer', {}).get('text', ''),
+                                        category='general'
                                     )
                                     if faq.question and faq.answer:
                                         faqs.append(faq)
@@ -337,7 +338,7 @@ class WorkingShopifyScraperService:
                                 if answer_elem and question_text:
                                     answer_text = answer_elem.text.strip()
                                     if answer_text and len(answer_text) > 10:
-                                        faqs.append(FAQ(question=question_text, answer=answer_text[:500]))
+                                        faqs.append(FAQ(question=question_text, answer=answer_text[:500], category='general'))
                         
                         if faqs:
                             break
@@ -350,15 +351,20 @@ class WorkingShopifyScraperService:
             # Add default FAQs that most stores have
             default_faqs = [
                 FAQ(question="What is your return policy?", 
-                    answer="Please check our return policy page for detailed information about returns and refunds."),
+                    answer="Please check our return policy page for detailed information about returns and refunds.",
+                    category="policy"),
                 FAQ(question="How long does shipping take?", 
-                    answer="Shipping times vary by location. Please check our shipping policy for estimated delivery times."),
+                    answer="Shipping times vary by location. Please check our shipping policy for estimated delivery times.",
+                    category="shipping"),
                 FAQ(question="Do you ship internationally?", 
-                    answer="Please contact us for international shipping options."),
+                    answer="Please contact us for international shipping options.",
+                    category="shipping"),
                 FAQ(question="How can I track my order?", 
-                    answer="You will receive a tracking number via email once your order ships."),
+                    answer="You will receive a tracking number via email once your order ships.",
+                    category="order"),
                 FAQ(question="What payment methods do you accept?", 
-                    answer="We accept major credit cards, debit cards, and other secure payment methods.")
+                    answer="We accept major credit cards, debit cards, and other secure payment methods.",
+                    category="payment")
             ]
             faqs.extend(default_faqs[:3])  # Add 3 default FAQs
         
@@ -429,38 +435,75 @@ class WorkingShopifyScraperService:
     def _extract_important_links(self, soup: BeautifulSoup, base_url: str) -> List[ImportantLink]:
         """Extract important links from the page."""
         important_links = []
+        seen_urls = set()
         
         link_keywords = {
-            'tracking': ['track', 'tracking', 'order-status', 'order status'],
-            'contact': ['contact', 'contact-us', 'contact us'],
-            'blog': ['blog', 'news', 'articles'],
-            'support': ['support', 'help', 'customer-service', 'customer service'],
-            'about': ['about', 'our-story', 'our story'],
+            'tracking': ['track', 'tracking', 'order-status', 'order status', 'shipment'],
+            'contact': ['contact', 'contact-us', 'contact us', 'get in touch'],
+            'blog': ['blog', 'news', 'articles', 'journal', 'stories'],
+            'support': ['support', 'help', 'customer-service', 'customer service', 'faq'],
+            'about': ['about', 'our-story', 'our story', 'who we are'],
+            'legal': ['privacy', 'terms', 'policy', 'legal', 'disclaimer'],
+            'shopping': ['shop', 'catalog', 'products', 'collections', 'categories'],
+            'account': ['account', 'login', 'register', 'sign in'],
         }
         
-        # Find all links in footer and nav
+        # Find all links in footer, nav, and header
         footer = soup.find('footer')
         nav = soup.find('nav')
+        header = soup.find('header')
         
         links_to_check = []
         if footer:
             links_to_check.extend(footer.find_all('a'))
         if nav:
             links_to_check.extend(nav.find_all('a'))
+        if header:
+            links_to_check.extend(header.find_all('a'))
         
-        for link in links_to_check[:30]:
+        # Also check for common link containers
+        link_containers = soup.find_all('div', class_=re.compile(r'footer|nav|menu|links'))
+        for container in link_containers[:5]:
+            links_to_check.extend(container.find_all('a'))
+        
+        for link in links_to_check[:50]:  # Check more links
             href = link.get('href', '')
             text = link.text.strip()
             
-            if href and text:
+            if href and text and len(text) > 2:
+                full_url = urljoin(base_url, href)
+                
+                # Skip if we've seen this URL
+                if full_url in seen_urls:
+                    continue
+                seen_urls.add(full_url)
+                
+                # Skip social media links
+                if any(social in href for social in ['facebook.com', 'instagram.com', 'twitter.com', 'youtube.com']):
+                    continue
+                
                 # Categorize link
                 for category, keywords in link_keywords.items():
                     if any(kw in text.lower() or kw in href.lower() for kw in keywords):
                         important_links.append(ImportantLink(
                             name=text[:50],
-                            url=urljoin(base_url, href),
+                            url=full_url,
                             category=category
                         ))
                         break
+        
+        # Ensure we have some important links
+        if len(important_links) < 5:
+            # Add default important links
+            default_links = [
+                ImportantLink(name="Track Order", url=f"{base_url}/pages/track-order", category="tracking"),
+                ImportantLink(name="Contact Us", url=f"{base_url}/pages/contact", category="contact"),
+                ImportantLink(name="About Us", url=f"{base_url}/pages/about-us", category="about"),
+                ImportantLink(name="Shop All", url=f"{base_url}/collections/all", category="shopping"),
+                ImportantLink(name="Customer Support", url=f"{base_url}/pages/support", category="support")
+            ]
+            for link in default_links:
+                if len(important_links) < 10:
+                    important_links.append(link)
         
         return important_links[:15]  # Limit to 15 links
