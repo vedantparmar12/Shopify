@@ -1,0 +1,50 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+uvloop
+python-multipart
+
+# Database (Bonus Feature)
+sqlalchemy
+pymysql
+aiomysql
+
+# Redis (Optional Cache - Bonus Feature)
+redis
+
+# HTTP Clients
+aiohttp
+httpx
+
+# Web Scraping
+beautifulsoup4
+lxml
+scrapy
+twisted
+selenium
+webdriver-manager
+
+# Data Validation
+pydantic[email]
+pydantic-settings
+email-validator
+
+# LLM Services (Optional for data structuring)
+openai
+anthropic
+
+# Utilities
+python-dotenv
+tenacity
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+
+# Code Quality
+ruff
+mypy
+black
+isort

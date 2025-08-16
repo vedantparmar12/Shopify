@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: shopify-insights-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=mysql://shopify_admin:YourStrongPassword123!@mysql:3306/shopify_insights
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      - DEBUG=False
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+    networks:
+      - shopify-network
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  mysql:
+    image: mysql:8.0
+    container_name: shopify-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword123!
+      MYSQL_DATABASE: shopify_insights
+      MYSQL_USER: shopify_admin
+      MYSQL_PASSWORD: YourStrongPassword123!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - shopify-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopify-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - shopify-network
+    restart: unless-stopped
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer
+    container_name: shopify-adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - shopify-network
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+networks:
+  shopify-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
