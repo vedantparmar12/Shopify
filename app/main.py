@@ -1,5 +1,3 @@
-"""Main FastAPI application with only essential endpoints."""
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,27 +20,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Shopify Store Insights Fetcher",
-    description="""
-    Extract comprehensive brand insights from Shopify store websites.
-    
-    **Core Features:**
-    - Extract 9 mandatory data points from any Shopify store
-    - Product catalog with pagination support
-    - Policies, FAQs, social handles, and contact information
-    - Competitor discovery and analysis
-    
-    **Improvements:**
-    - Enhanced brand name extraction
-    - FAQ filtering (no navigation items)
-    - Phone number detection with tel: link support
-    - Product pagination (up to 100 products)
-    - Competitor discovery beyond myshopify domains
-    
-    **Test Stores:**
-    - https://jeffreestarcosmetics.com
-    - https://memy.co.in
-    - https://colourpop.com
-    """,
     version="1.0.0",
     lifespan=lifespan
 )

@@ -1,5 +1,3 @@
-"""Working Shopify store scraper service using aiohttp and BeautifulSoup."""
-
 import asyncio
 import json
 import re

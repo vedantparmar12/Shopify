@@ -29,9 +29,7 @@ pydantic[email]
 pydantic-settings
 email-validator
 
-# LLM Services (Optional for data structuring)
-openai
-anthropic
+# LLM Services removed (not used)
 
 # Utilities
 python-dotenv
