@@ -1,5 +1,3 @@
-"""Application constants."""
-
 from enum import Enum
 from typing import Dict, List
 
