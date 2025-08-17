@@ -11,13 +11,15 @@ from app.models.brand_insights import (
     BrandInsights, ProductInfo, SocialHandle, 
     FAQ, ContactInfo, ImportantLink
 )
+from app.services.llm_service import LLMService
 
 
 class WorkingShopifyScraperService:
-    """Simple working scraper for Shopify stores."""
+    """Enhanced working scraper for Shopify stores with optional LLM support."""
     
     def __init__(self):
         self.session = None
+        self.llm_service = LLMService()
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -171,16 +173,21 @@ class WorkingShopifyScraperService:
         return domain.split('.')[0].capitalize()
     
     async def _fetch_products_json(self, base_url: str) -> List[ProductInfo]:
-        """Fetch products from products.json endpoint."""
+        """Fetch products from products.json endpoint with pagination support."""
         products = []
-        url = f"{base_url}/products.json"
+        page = 1
+        max_pages = 5  # Limit to prevent too many requests
         
-        try:
-            # Fetch first page
-            async with self.session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    products_data = data.get('products', [])
+        while page <= max_pages:
+            try:
+                url = f"{base_url}/products.json?page={page}&limit=250"
+                async with self.session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        products_data = data.get('products', [])
+                        
+                        if not products_data:
+                            break
                     
                     for p in products_data:
                         product = ProductInfo(
@@ -204,8 +211,17 @@ class WorkingShopifyScraperService:
                             product.image_url = p['images'][0].get('src')
                         
                         products.append(product)
-        except Exception as e:
-            print(f"Error fetching products.json: {e}")
+                        
+                        # Check if we should continue to next page
+                        if len(products_data) < 250:
+                            break
+                        
+                        page += 1
+                    else:
+                        break
+            except Exception as e:
+                print(f"Error fetching products page {page}: {e}")
+                break
         
         return products
     
