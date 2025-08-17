@@ -30,7 +30,6 @@ pydantic[email]
 pydantic-settings
 email-validator
 
-# LLM Services (Optional for data structuring)
 google-generativeai  # Google Gemini
 openai
 anthropic

@@ -1,5 +1,3 @@
-"""Core insights API routes - simplified version with only essential endpoints."""
-
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any

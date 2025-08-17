@@ -4,20 +4,19 @@ from datetime import datetime
 from collections import defaultdict
 
 from app.models.brand_insights import BrandInsights, ProductInfo
-from app.services.llm_service import LLMService
 
 
 class DataProcessor:
     def __init__(self):
-        self.llm_service = LLMService()
+        pass
     
     async def enrich_insights(self, insights: BrandInsights) -> BrandInsights:
-        # Clean and structure policies using LLM if available
+        # Clean and structure policies
         if insights.privacy_policy:
-            insights.privacy_policy = await self.llm_service.clean_policy_text(insights.privacy_policy)
+            insights.privacy_policy = self._clean_text(insights.privacy_policy)
         
         if insights.return_refund_policy:
-            insights.return_refund_policy = await self.llm_service.clean_policy_text(insights.return_refund_policy)
+            insights.return_refund_policy = self._clean_text(insights.return_refund_policy)
         
         # Enrich brand context
         if not insights.brand_context and insights.brand_description:
@@ -155,6 +154,20 @@ class DataProcessor:
             score += min(10, len(insights.important_links))
         
         return round(score / max_score * 100, 2)
+    
+    def _clean_text(self, text: str) -> str:
+        """Clean and format text content."""
+        if not text:
+            return ""
+        
+        # Remove extra whitespace
+        cleaned = " ".join(text.split())
+        
+        # Limit length
+        if len(cleaned) > 5000:
+            cleaned = cleaned[:5000] + "..."
+        
+        return cleaned
     
     def generate_extraction_summary(self, insights: BrandInsights) -> Dict[str, Any]:
         quality_score = self.calculate_extraction_quality_score(insights)
