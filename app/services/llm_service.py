@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 import openai
 from anthropic import Anthropic
+import google.generativeai as genai
 
 from app.models.brand_insights import FAQ
 from app.utils.exceptions import LLMServiceException
@@ -16,10 +17,15 @@ class LLMService:
     def __init__(self):
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
         
-        self.use_llm = bool(self.openai_api_key or self.anthropic_api_key)
+        self.use_llm = bool(self.openai_api_key or self.anthropic_api_key or self.gemini_api_key)
         
-        if self.openai_api_key:
+        if self.gemini_api_key:
+            genai.configure(api_key=self.gemini_api_key)
+            self.gemini_model = genai.GenerativeModel(os.getenv('GEMINI_MODEL', 'gemini-pro'))
+            self.llm_provider = 'gemini'
+        elif self.openai_api_key:
             openai.api_key = self.openai_api_key
             self.llm_provider = 'openai'
         elif self.anthropic_api_key:
@@ -127,6 +133,14 @@ class LLMService:
         
         try:
             response = await self._call_llm(prompt)
+            # Clean response for JSON parsing (especially for Gemini)
+            response = response.strip()
+            if response.startswith('```json'):
+                response = response[7:]
+            if response.endswith('```'):
+                response = response[:-3]
+            response = response.strip()
+            
             categories = json.loads(response)
             
             categorized = {}
@@ -142,22 +156,35 @@ class LLMService:
     
     async def _call_llm(self, prompt: str) -> str:
         try:
-            if self.llm_provider == 'openai':
+            if self.llm_provider == 'gemini' and genai:
+                # Google Gemini API
+                generation_config = {
+                    "temperature": float(os.getenv('GEMINI_TEMPERATURE', '0.3')),
+                    "max_output_tokens": int(os.getenv('GEMINI_MAX_TOKENS', '1000')),
+                }
+                
+                response = self.gemini_model.generate_content(
+                    prompt,
+                    generation_config=generation_config
+                )
+                return response.text
+            
+            elif self.llm_provider == 'openai':
                 response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
+                    model=os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo'),
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant that extracts and structures e-commerce data."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=1000,
-                    temperature=0.3
+                    max_tokens=int(os.getenv('OPENAI_MAX_TOKENS', '1000')),
+                    temperature=float(os.getenv('OPENAI_TEMPERATURE', '0.3'))
                 )
                 return response.choices[0].message.content
             
             elif self.llm_provider == 'anthropic':
                 response = self.anthropic_client.messages.create(
-                    model="claude-3-haiku-20240307",
-                    max_tokens=1000,
+                    model=os.getenv('ANTHROPIC_MODEL', 'claude-3-haiku-20240307'),
+                    max_tokens=int(os.getenv('ANTHROPIC_MAX_TOKENS', '1000')),
                     temperature=0.3,
                     messages=[
                         {"role": "user", "content": prompt}

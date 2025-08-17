@@ -92,19 +92,31 @@ class ScrapingSettings(BaseSettings):
 class LLMSettings(BaseSettings):
     """LLM service configuration settings."""
     
+    # API Keys
+    gemini_api_key: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
     openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     
     # Model settings
+    gemini_model: str = Field(default="gemini-pro", env="GEMINI_MODEL")
     openai_model: str = Field(default="gpt-3.5-turbo", env="OPENAI_MODEL")
     anthropic_model: str = Field(default="claude-3-haiku-20240307", env="ANTHROPIC_MODEL")
     
-    max_tokens: int = Field(default=1000, env="LLM_MAX_TOKENS")
-    temperature: float = Field(default=0.3, env="LLM_TEMPERATURE")
+    # Token and temperature settings
+    gemini_max_tokens: int = Field(default=1000, env="GEMINI_MAX_TOKENS")
+    gemini_temperature: float = Field(default=0.3, env="GEMINI_TEMPERATURE")
+    openai_max_tokens: int = Field(default=1000, env="OPENAI_MAX_TOKENS")
+    openai_temperature: float = Field(default=0.3, env="OPENAI_TEMPERATURE")
+    anthropic_max_tokens: int = Field(default=1000, env="ANTHROPIC_MAX_TOKENS")
+    
+    # General LLM settings
+    use_llm_for_extraction: bool = Field(default=True, env="USE_LLM_FOR_EXTRACTION")
+    llm_provider: str = Field(default="gemini", env="LLM_PROVIDER")  # gemini, openai, anthropic, none
+    llm_fallback_enabled: bool = Field(default=True, env="LLM_FALLBACK_ENABLED")
     
     @property
     def is_enabled(self) -> bool:
-        return bool(self.openai_api_key or self.anthropic_api_key)
+        return bool(self.use_llm_for_extraction and (self.gemini_api_key or self.openai_api_key or self.anthropic_api_key))
     
     model_config = {
         "env_file": ".env",

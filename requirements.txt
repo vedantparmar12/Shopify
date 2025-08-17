@@ -1,13 +1,14 @@
 # Web Framework
 fastapi
 uvicorn[standard]
-uvloop
 python-multipart
 
 # Database (Bonus Feature)
 sqlalchemy
 pymysql
 aiomysql
+duckdb
+duckdb-engine
 
 # Redis (Optional Cache - Bonus Feature)
 redis
@@ -30,8 +31,13 @@ pydantic-settings
 email-validator
 
 # LLM Services (Optional for data structuring)
+google-generativeai  # Google Gemini
 openai
 anthropic
+langchain
+langchain-openai
+langchain-anthropic
+langchain-community
 
 # Utilities
 python-dotenv

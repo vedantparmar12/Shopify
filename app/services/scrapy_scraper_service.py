@@ -371,7 +371,8 @@ class ShopifySpider(scrapy.Spider):
                             if question and answer:
                                 faqs.append({
                                     'question': question,
-                                    'answer': answer[:500]  # Limit answer length
+                                    'answer': answer[:500],  # Limit answer length
+                                    'category': 'General'  # Default category
                                 })
             except:
                 continue
@@ -387,7 +388,8 @@ class ShopifySpider(scrapy.Spider):
                 if question and answer:
                     faqs.append({
                         'question': question.strip(),
-                        'answer': answer.strip()[:500]
+                        'answer': answer.strip()[:500],
+                        'category': 'General'  # Default category
                     })
         
         return faqs

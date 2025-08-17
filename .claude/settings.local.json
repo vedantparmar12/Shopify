@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe run_local.py:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

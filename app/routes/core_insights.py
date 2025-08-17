@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+import asyncio
 
 router = APIRouter(prefix="/api/version1", tags=["Core Insights"])
 
@@ -170,7 +171,11 @@ async def extract_brand_insights(request: ExtractRequest):
                 shipping_policy=insights.shipping_policy,
                 terms_of_service=insights.terms_of_service,
                 brand_context=insights.brand_context,
-                faqs=[f.dict() for f in insights.faqs],
+                faqs=[{
+                    'question': f.question,
+                    'answer': f.answer,
+                    'category': f.category or 'General'
+                } for f in insights.faqs],
                 social_handles=social_handles,
                 contact_info=insights.contact_info.dict(),
                 important_links=important_links,
@@ -246,7 +251,7 @@ async def analyze_competitors(request: CompetitorRequest):
         
         # First extract brand insights to get brand name
         from app.services.working_scraper import WorkingShopifyScraperService
-        from app.services.competitor_service import CompetitorAnalysisService
+        from app.services.fast_competitor_service import FastCompetitorService
         from app.database.service import DatabaseService
         
         async with WorkingShopifyScraperService() as scraper:
@@ -269,72 +274,95 @@ async def analyze_competitors(request: CompetitorRequest):
         # Use CompetitorAnalysisService for enhanced competitor discovery
         competitor_urls = []
         
-        if request.find_competitors and brand_name:
+        if request.find_competitors:
             # Extract product types/categories from main brand
             product_types = set()
-            for product in insights_dict.get('product_catalog', [])[:20]:
-                if product.get('product_type'):
-                    product_types.add(product['product_type'].lower())
+            products = []
             
-            # Use competitor service for more comprehensive search
+            # Handle both BrandInsights object and dict
+            if hasattr(main_insights, 'product_catalog'):
+                products = main_insights.product_catalog or []
+            else:
+                products = insights_dict.get('product_catalog', [])
+            
+            # Get product types and names for industry detection
+            product_names = []
+            for product in products[:20]:
+                if hasattr(product, 'product_type') and product.product_type:
+                    product_types.add(product.product_type.lower())
+                elif isinstance(product, dict) and product.get('product_type'):
+                    product_types.add(product['product_type'].lower())
+                
+                # Also collect product names for better industry detection
+                if hasattr(product, 'name'):
+                    product_names.append(product.name.lower())
+                elif isinstance(product, dict) and product.get('name'):
+                    product_names.append(product['name'].lower())
+            
+            # Determine industry from product names and types
+            industry_keywords = list(product_types)[:3] if product_types else []
+            
+            # If no product types, try to infer from product names
+            if not industry_keywords and product_names:
+                # Common industry keywords to look for in product names
+                industry_patterns = {
+                    'cosmetics': ['lipstick', 'foundation', 'mascara', 'eyeshadow', 'makeup', 'cosmetic'],
+                    'fashion': ['dress', 'shirt', 'pants', 'jacket', 'clothing', 'apparel'],
+                    'jewelry': ['ring', 'necklace', 'bracelet', 'earring', 'pendant'],
+                    'beauty': ['serum', 'cream', 'moisturizer', 'cleanser', 'skincare'],
+                    'accessories': ['bag', 'wallet', 'belt', 'hat', 'scarf']
+                }
+                
+                products_text = ' '.join(product_names)
+                for industry, patterns in industry_patterns.items():
+                    if any(pattern in products_text for pattern in patterns):
+                        industry_keywords = [industry]
+                        break
+            
+            print(f"Detected industry keywords: {industry_keywords}")
+            
+            # Use FAST competitor service with DuckDB
             try:
-                async with CompetitorAnalysisService() as comp_service:
-                    industry_keywords = list(product_types)[:3] if product_types else []
+                # Determine industry from keywords
+                industry = None
+                if industry_keywords:
+                    keywords_text = ' '.join(industry_keywords).lower()
+                    if 'cosmetic' in keywords_text or 'makeup' in keywords_text:
+                        industry = 'cosmetics'
+                    elif 'fashion' in keywords_text or 'clothing' in keywords_text:
+                        industry = 'fashion'
+                    elif 'jewelry' in keywords_text or 'jewellery' in keywords_text:
+                        industry = 'jewelry'
+                    elif 'electronic' in keywords_text or 'tech' in keywords_text:
+                        industry = 'electronics'
+                    elif 'home' in keywords_text or 'furniture' in keywords_text:
+                        industry = 'home'
+                    elif 'sport' in keywords_text or 'fitness' in keywords_text:
+                        industry = 'sports'
+                    elif 'beauty' in keywords_text or 'skincare' in keywords_text:
+                        industry = 'beauty'
+                
+                # Extract domain from URL
+                from urllib.parse import urlparse
+                parsed_url = urlparse(website_url)
+                domain = parsed_url.netloc
+                
+                # Use fast competitor service
+                async with FastCompetitorService() as comp_service:
                     competitor_urls = await comp_service.find_competitors(
-                        brand_name=brand_name,
-                        industry_keywords=industry_keywords,
+                        brand_name=brand_name or domain,
+                        domain=domain,
+                        industry=industry,
                         max_results=max_competitors
                     )
-                    print(f"Competitor service found {len(competitor_urls)} competitors")
+                    print(f"Fast competitor service found {len(competitor_urls)} competitors instantly")
             except Exception as e:
-                print(f"Competitor service failed, using fallback: {e}")
+                print(f"Fast competitor service failed: {e}")
+                competitor_urls = []
             
-            # Fallback: Common competitor domains for different categories
-            # This is a simplified approach without external search APIs
-            competitor_domains = {
-                'cosmetics': [
-                    'https://colourpop.com',
-                    'https://jeffreestarcosmetics.com',
-                    'https://kyliecosmetics.com',
-                    'https://fentybeauty.com',
-                    'https://morphe.com'
-                ],
-                'fashion': [
-                    'https://fashionnova.com',
-                    'https://reddressboutique.com',
-                    'https://shopakira.com',
-                    'https://revolve.com',
-                    'https://prettylittlething.com'
-                ],
-                'fitness': [
-                    'https://gymshark.com',
-                    'https://alphalete.com',
-                    'https://nvgtn.com',
-                    'https://buffbunny.com',
-                    'https://youngla.com'
-                ],
-                'jewelry': [
-                    'https://mejuri.com',
-                    'https://missoma.com',
-                    'https://astridandmiyu.com',
-                    'https://analuisa.com',
-                    'https://kimai.com'
-                ],
-                'beauty': [
-                    'https://glossier.com',
-                    'https://milkmakeup.com',
-                    'https://rarebeauty.com',
-                    'https://hauslabs.com',
-                    'https://fentybeauty.com'
-                ]
-            }
-            
-            # Find relevant competitors based on product types
-            for product_type in product_types:
-                for category, domains in competitor_domains.items():
-                    if category in product_type or product_type in category:
-                        competitor_urls.extend(domains[:max_competitors])
-                        break
+            # No hardcoded fallback - competitors must be found dynamically
+            if not competitor_urls:
+                print("No competitors found through search or LLM")
             
             # Remove the main brand URL if it's in the list
             competitor_urls = [url for url in competitor_urls if url != website_url]
